@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ludo Game - Player vs. Bot</title>
+    <style>
+        /* --- Basic Setup --- */
+        :root {
+            --board-size: 90vmin;
+            --cell-size: calc(var(--board-size) / 15);
+            --piece-size: calc(var(--cell-size) * 0.7);
+
+            --red-color: #ff414d;
+            --green-color: #3f9b0b;
+            --yellow-color: #ffcd00;
+            --blue-color: #007bff;
+
+            --red-light: #ff8a92;
+            --green-light: #84c75e;
+            --yellow-light: #ffde59;
+            --blue-light: #73b4ff;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #2c3e50;
+            color: white;
+            margin: 0;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px #000;
+        }
+
+        /* --- Game Container --- */
+        .game-container {
+            display: flex;
+            align-items: center;
+            gap: 40px;
+        }
+
+        /* --- Ludo Board --- */
+        .ludo-board {
+            width: var(--board-size);
+            height: var(--board-size);
+            background-color: #f0f0f0;
+            border: 5px solid #333;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+            display: grid;
+            grid-template-columns: repeat(15, 1fr);
+            grid-template-rows: repeat(15, 1fr);
+            position: relative;
+        }
+
+        /* --- Player Homes --- */
+        .home {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            place-items: center;
+            padding: 10%;
+        }
+
+        .home-inner {
+            width: 70%;
+            height: 70%;
+            background-color: white;
+            border-radius: 15px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 10%;
+            padding: 10%;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+        }
+
+        .home-piece-spot {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+        }
+
+        .red-home { grid-area: 1 / 1 / 7 / 7; background-color: var(--red-color); }
+        .green-home { grid-area: 1 / 10 / 7 / 16; background-color: var(--green-color); }
+        .blue-home { grid-area: 10 / 1 / 16 / 7; background-color: var(--blue-color); }
+        .yellow-home { grid-area: 10 / 10 / 16 / 16; background-color: var(--yellow-color); }
+        
+        .red-home .home-piece-spot { background-color: var(--red-light); }
+        .green-home .home-piece-spot { background-color: var(--green-light); }
+        .blue-home .home-piece-spot { background-color: var(--blue-light); }
+        .yellow-home .home-piece-spot { background-color: var(--yellow-light); }
+
+        /* --- Center Goal --- */
+        .center-home {
+            grid-area: 7 / 7 / 10 / 10;
+            background-color: #f0f0f0;
+            position: relative;
+        }
+
+        .goal-triangle {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-style: solid;
+        }
+        .red-goal { top: 0; left: 0; border-width: calc(var(--cell-size) * 1.5) calc(var(--cell-size) * 1.5) 0 0; border-color: var(--red-color) transparent transparent transparent; }
+        .green-goal { top: 0; right: 0; border-width: 0 calc(var(--cell-size) * 1.5) calc(var(--cell-size) * 1.5) 0; border-color: transparent var(--green-color) transparent transparent; }
+        .blue-goal { bottom: 0; left: 0; border-width: calc(var(--cell-size) * 1.5) 0 0 calc(var(--cell-size) * 1.5); border-color: transparent transparent transparent var(--blue-color); }
+        .yellow-goal { bottom: 0; right: 0; border-width: 0 0 calc(var(--cell-size) * 1.5) calc(var(--cell-size) * 1.5); border-color: transparent transparent var(--yellow-color) transparent; }
+
+        /* --- Path Cells --- */
+        .path-cell {
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            background-color: white;
+            position: relative;
+        }
+
+        .red-path { background-color: var(--red-light); }
+        .green-path { background-color: var(--green-light); }
+        .blue-path { background-color: var(--blue-light); }
+        .yellow-path { background-color: var(--yellow-light); }
+
+        .safe-cell {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a9a9a9'%3E%3Cpath d='M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z'/%3E%3C/svg%3E");
+            background-size: 60%;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        /* --- Pieces --- */
+        .piece {
+            position: absolute;
+            width: var(--piece-size);
+            height: var(--piece-size);
+            border-radius: 50%;
+            border: 2px solid rgba(0,0,0,0.5);
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+            transition: all 0.4s ease-in-out;
+            z-index: 10;
+        }
+
+        .red-piece { background-color: var(--red-color); }
+        .green-piece { background-color: var(--green-color); }
+        .blue-piece { background-color: var(--blue-color); }
+        .yellow-piece { background-color: var(--yellow-color); }
+
+        .movable {
+            cursor: pointer;
+            animation: pulse 1s infinite;
+            box-shadow: 0 0 15px 5px #fff, 0 0 25px 10px #fffc33;
+            z-index: 20;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
+        /* --- UI Controls --- */
+        .ui-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 15px;
+        }
+
+        #status-message {
+            font-size: 1.5em;
+            font-weight: bold;
+            min-height: 50px;
+            text-align: center;
+        }
+
+        .dice-container {
+            perspective: 1000px;
+        }
+        
+        #dice {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 1s;
+            cursor: pointer;
+        }
+
+        .dice-face {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            background: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3em;
+            color: #333;
+        }
+        
+        /* Dice faces positioning */
+        .face-1 { transform: rotateY(0deg) translateZ(40px); }
+        .face-2 { transform: rotateY(90deg) translateZ(40px); }
+        .face-3 { transform: rotateY(180deg) translateZ(40px); }
+        .face-4 { transform: rotateY(-90deg) translateZ(40px); }
+        .face-5 { transform: rotateX(90deg) translateZ(40px); }
+        .face-6 { transform: rotateX(-90deg) translateZ(40px); }
+        
+        #reset-button {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: var(--blue-color);
+            color: white;
+            transition: background-color 0.3s;
+        }
+        #reset-button:hover {
+            background-color: var(--blue-light);
+        }
+
+        .disabled {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        @media (max-width: 900px) {
+            .game-container {
+                flex-direction: column;
+            }
+            :root {
+                --board-size: 95vmin;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Ludo Game: Player vs. Bot</h1>
+
+    <div class="game-container">
+        <div class="ludo-board" id="ludo-board">
+            <!-- Homes -->
+            <div class="home red-home">
+                <div class="home-inner">
+                    <div class="home-piece-spot" id="red-home-1"></div>
+                    <div class="home-piece-spot" id="red-home-2"></div>
+                    <div class="home-piece-spot" id="red-home-3"></div>
+                    <div class="home-piece-spot" id="red-home-4"></div>
+                </div>
+            </div>
+            <div class="home green-home">
+                 <div class="home-inner">
+                    <div class="home-piece-spot" id="green-home-1"></div>
+                    <div class="home-piece-spot" id="green-home-2"></div>
+                    <div class="home-piece-spot" id="green-home-3"></div>
+                    <div class="home-piece-spot" id="green-home-4"></div>
+                </div>
+            </div>
+            <div class="home blue-home">
+                 <div class="home-inner">
+                    <div class="home-piece-spot" id="blue-home-1"></div>
+                    <div class="home-piece-spot" id="blue-home-2"></div>
+                    <div class="home-piece-spot" id="blue-home-3"></div>
+                    <div class="home-piece-spot" id="blue-home-4"></div>
+                </div>
+            </div>
+            <div class="home yellow-home">
+                 <div class="home-inner">
+                    <div class="home-piece-spot" id="yellow-home-1"></div>
+                    <div class="home-piece-spot" id="yellow-home-2"></div>
+                    <div class="home-piece-spot" id="yellow-home-3"></div>
+                    <div class="home-piece-spot" id="yellow-home-4"></div>
+                </div>
+            </div>
+
+            <!-- Center Goal -->
+            <div class="center-home">
+                <div class="goal-triangle red-goal"></div>
+                <div class="goal-triangle green-goal"></div>
+                <div class="goal-triangle blue-goal"></div>
+                <div class="goal-triangle yellow-goal"></div>
+            </div>
+        </div>
+
+        <div class="ui-panel">
+            <p id="status-message">खेलने के लिए पासा फेंके</p>
+            <div class="dice-container">
+                <div id="dice">
+                    <div class="dice-face face-1">1</div>
+                    <div class="dice-face face-2">2</div>
+                    <div class="dice-face face-3">3</div>
+                    <div class="dice-face face-4">4</div>
+                    <div class="dice-face face-5">5</div>
+                    <div class="dice-face face-6">6</div>
+                </div>
+            </div>
+            <button id="reset-button">Restart Game</button>
+        </div>
+    </div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const board = document.getElementById('ludo-board');
+    const diceElement = document.getElementById('dice');
+    const statusMessage = document.getElementById('status-message');
+    const resetButton = document.getElementById('reset-button');
+
+    const PLAYER_COLORS = ['red', 'green', 'yellow', 'blue'];
+    const PLAYER_START_POS = { red: 1, green: 14, yellow: 27, blue: 40 };
+    const HOME_STRETCH_START = { red: 53, green: 59, yellow: 65, blue: 71 };
+    const TOTAL_CELLS = 52;
+    const WIN_POS = 99; // Position when piece is home
+    const HOME_POS = -1; // Position when piece is in home base
+
+    let players = {};
+    let turn = 'blue'; // Player starts
+    let diceValue = 0;
+    let gameActive = true;
+
+    // --- Path and Cell Layout ---
+    const pathLayout = [
+        // Top Row
+        { gridArea: '7 / 1', id: 52 }, { gridArea: '7 / 2', id: 51, safe: true }, { gridArea: '7 / 3', id: 50 }, { gridArea: '7 / 4', id: 49 }, { gridArea: '7 / 5', id: 48 }, { gridArea: '7 / 6', id: 47 },
+        { gridArea: '6 / 7', id: 46 }, { gridArea: '5 / 7', id: 45 }, { gridArea: '4 / 7', id: 44 }, { gridArea: '3 / 7', id: 43 }, { gridArea: '2 / 7', id: 42 }, { gridArea: '1 / 7', id: 41 },
+        { gridArea: '1 / 8', id: 40, color: 'blue' }, { gridArea: '1 / 9', id: 39 },
+        { gridArea: '2 / 9', id: 38 }, { gridArea: '3 / 9', id: 37 }, { gridArea: '4 / 9', id: 36 }, { gridArea: '5 / 9', id: 35 }, { gridArea: '6 / 9', id: 34 },
+        { gridArea: '7 / 10', id: 33 }, { gridArea: '7 / 11', id: 32 }, { gridArea: '7 / 12', id: 31 }, { gridArea: '7 / 13', id: 30 }, { gridArea: '7 / 14', id: 29 }, { gridArea: '7 / 15', id: 28 },
+        { gridArea: '8 / 15', id: 27, color: 'yellow' }, { gridArea: '9 / 15', id: 26, safe: true },
+        { gridArea: '9 / 14', id: 25 }, { gridArea: '9 / 13', id: 24 }, { gridArea: '9 / 12', id: 23 }, { gridArea: '9 / 11', id: 22 }, { gridArea: '9 / 10', id: 21 },
+        { gridArea: '10 / 9', id: 20 }, { gridArea: '11 / 9', id: 19 }, { gridArea: '12 / 9', id: 18 }, { gridArea: '13 / 9', id: 17 }, { gridArea: '14 / 9', id: 16 }, { gridArea: '15 / 9', id: 15 },
+        { gridArea: '15 / 8', id: 14, color: 'green' }, { gridArea: '15 / 7', id: 13 },
+        { gridArea: '14 / 7', id: 12 }, { gridArea: '13 / 7', id: 11 }, { gridArea: '12 / 7', id: 10 }, { gridArea: '11 / 7', id: 9 }, { gridArea: '10 / 7', id: 8, safe: true },
+        { gridArea: '9 / 6', id: 7 }, { gridArea: '9 / 5', id: 6 }, { gridArea: '9 / 4', id: 5 }, { gridArea: '9 / 3', id: 4 }, { gridArea: '9 / 2', id: 3 }, { gridArea: '9 / 1', id: 2 },
+        { gridArea: '8 / 1', id: 1, color: 'red' },
+        // Home stretches
+        ...Array.from({length: 6}, (_, i) => ({ gridArea: `8 / ${2+i}`, id: 53+i, color: 'red' })), // Red
+        ...Array.from({length: 6}, (_, i) => ({ gridArea: `${14-i} / 8`, id: 59+i, color: 'green' })), // Green
+        ...Array.from({length: 6}, (_, i) => ({ gridArea: `8 / ${14-i}`, id: 65+i, color: 'yellow' })), // Yellow
+        ...Array.from({length: 6}, (_, i) => ({ gridArea: `${2+i} / 8`, id: 71+i, color: 'blue' })), // Blue
+    ];
+
+    function createBoard() {
+        pathLayout.forEach(cellInfo => {
+            const cell = document.createElement('div');
+            cell.classList.add('path-cell');
+            cell.id = `cell-${cellInfo.id}`;
+            cell.style.gridArea = cellInfo.gridArea;
+            if (cellInfo.color) {
+                cell.classList.add(`${cellInfo.color}-path`);
+                if ([1, 14, 27, 40].includes(cellInfo.id)) {
+                    cell.classList.add('safe-cell');
+                }
+            }
+            if (cellInfo.safe) {
+                cell.classList.add('safe-cell');
+            }
+            board.appendChild(cell);
+        });
+    }
+
+    function initGame() {
+        gameActive = true;
+        turn = 'blue';
+        diceValue = 0;
+        
+        // Clear old pieces
+        document.querySelectorAll('.piece').forEach(p => p.remove());
+
+        players = {
+            red: { id: 'red', isBot: true, pieces: [] },
+            green: { id: 'green', isBot: true, pieces: [] },
+            yellow: { id: 'yellow', isBot: true, pieces: [] },
+            blue: { id: 'blue', isBot: false, pieces: [] },
+        };
+
+        PLAYER_COLORS.forEach(color => {
+            for (let i = 1; i <= 4; i++) {
+                const pieceId = `${color}-piece-${i}`;
+                const pieceElement = document.createElement('div');
+                pieceElement.id = pieceId;
+                pieceElement.classList.add('piece', `${color}-piece`);
+                board.appendChild(pieceElement);
+
+                players[color].pieces.push({
+                    id: pieceId,
+                    position: HOME_POS,
+                    element: pieceElement
+                });
+            }
+        });
+        
+        renderAllPieces();
+        updateStatus();
+        diceElement.classList.remove('disabled');
+    }
+
+    function renderAllPieces() {
+        PLAYER_COLORS.forEach(color => {
+            players[color].pieces.forEach((piece, index) => {
+                renderPiece(piece, index);
+            });
+        });
+    }
+
+    function renderPiece(piece, index) {
+        const targetElement = getTargetElementForPiece(piece, index);
+        const rect = targetElement.getBoundingClientRect();
+        const boardRect = board.getBoundingClientRect();
+
+        piece.element.style.top = `${rect.top - boardRect.top}px`;
+        piece.element.style.left = `${rect.left - boardRect.left}px`;
+    }
+
+    function getTargetElementForPiece(piece, index) {
+        if (piece.position === HOME_POS) {
+            return document.getElementById(`${piece.id.split('-')[0]}-home-${index + 1}`);
+        } else if (piece.position === WIN_POS) {
+             // Place it in the center goal area
+            return document.querySelector(`.${piece.id.split('-')[0]}-goal`);
+        } else {
+            return document.getElementById(`cell-${piece.position}`);
+        }
+    }
+
+    function rollDice() {
+        if (!gameActive || (players[turn].isBot) || diceValue !== 0) return;
+
+        diceValue = Math.floor(Math.random() * 6) + 1;
+        
+        const diceFaceTransforms = {
+            1: 'rotateY(0deg) translateZ(40px)',
+            2: 'rotateY(-90deg) translateZ(40px)',
+            3: 'rotateY(-180deg) translateZ(40px)',
+            4: 'rotateY(90deg) translateZ(40px)',
+            5: 'rotateX(-90deg) translateZ(40px)',
+            6: 'rotateX(90deg) translateZ(40px)'
+        };
+        diceElement.style.transform = `rotateX(${Math.random()*360*4}deg) rotateY(${Math.random()*360*4}deg)`;
+        
+        setTimeout(() => {
+            const finalTransform = diceFaceTransforms[diceValue];
+            diceElement.style.transition = 'transform 0.5s ease-out';
+            diceElement.style.transform = finalTransform;
+        }, 500);
+        setTimeout(() => {
+            diceElement.style.transition = 'transform 1s';
+        }, 1500)
+
+
+        updateStatus(`आपने ${diceValue} फेंका।`);
+        handleTurn();
+    }
+
+    function handleTurn() {
+        const movablePieces = getMovablePieces(turn, diceValue);
+
+        if (movablePieces.length === 0) {
+            updateStatus(`कोई चाल संभव नहीं।`, 1500);
+            setTimeout(switchTurn, 1500);
+            return;
+        }
+
+        if (players[turn].isBot) {
+            diceElement.classList.add('disabled');
+            setTimeout(() => {
+                const chosenPiece = chooseBotMove(movablePieces);
+                movePiece(chosenPiece.id);
+            }, 1000); // Bot "thinks" for a second
+        } else { // Player's turn
+            diceElement.classList.add('disabled');
+            updateStatus('अपनी गोटी चुनें।');
+            movablePieces.forEach(piece => {
+                piece.element.classList.add('movable');
+                piece.element.onclick = () => movePiece(piece.id);
+            });
+        }
+    }
+
+    function getMovablePieces(playerColor, roll) {
+        const player = players[playerColor];
+        const movable = [];
+
+        player.pieces.forEach(piece => {
+            if (piece.position === WIN_POS) return; // Already home
+
+            if (piece.position === HOME_POS && roll === 6) {
+                movable.push(piece);
+                return;
+            }
+
+            if (piece.position !== HOME_POS) {
+                // Check if move is valid (doesn't overshoot)
+                const homeStretchStart = HOME_STRETCH_START[playerColor];
+                if (piece.position >= homeStretchStart) {
+                    if (piece.position + roll <= homeStretchStart + 5) {
+                        movable.push(piece);
+                    }
+                } else {
+                    movable.push(piece);
+                }
+            }
+        });
+        return movable;
+    }
+
+    function movePiece(pieceId) {
+        // Cleanup UI
+        document.querySelectorAll('.movable').forEach(p => {
+            p.classList.remove('movable');
+            p.onclick = null;
+        });
+
+        const color = pieceId.split('-')[0];
+        const piece = players[color].pieces.find(p => p.id === pieceId);
+
+        let givesExtraTurn = false;
+
+        // --- Move Logic ---
+        if (piece.position === HOME_POS && diceValue === 6) {
+            piece.position = PLAYER_START_POS[color];
+            givesExtraTurn = true;
+        } else {
+            const homeStretchStart = HOME_STRETCH_START[color];
+            const playerStartPos = PLAYER_START_POS[color];
+            
+            let newPos = piece.position;
+            // Handle home stretch entry
+            if (newPos < homeStretchStart) {
+                const entryPoint = (playerStartPos === 1) ? TOTAL_CELLS : playerStartPos - 1;
+                if (newPos <= entryPoint && newPos + diceValue > entryPoint) {
+                    newPos = homeStretchStart + (newPos + diceValue - entryPoint - 1);
+                } else {
+                     newPos = (newPos + diceValue - 1) % TOTAL_CELLS + 1;
+                }
+            } else {
+                newPos += diceValue;
+            }
+
+            if (newPos === homeStretchStart + 5) {
+                piece.position = WIN_POS;
+                givesExtraTurn = true;
+            } else {
+                piece.position = newPos;
+            }
+        }
+        
+        // --- Collision (Kill) Logic ---
+        if (piece.position < HOME_STRETCH_START.red) { // not on home stretch
+            const isSafeCell = pathLayout.find(c => c.id === piece.position)?.safe;
+            if (!isSafeCell) {
+                PLAYER_COLORS.forEach(otherColor => {
+                    if (otherColor === color) return;
+                    players[otherColor].pieces.forEach((otherPiece, index) => {
+                        if (otherPiece.position === piece.position) {
+                            otherPiece.position = HOME_POS;
+                            givesExtraTurn = true;
+                            renderPiece(otherPiece, index);
+                            updateStatus(`${capitalize(color)} ने ${capitalize(otherColor)} की गोटी काटी!`, 2000);
+                        }
+                    });
+                });
+            }
+        }
+        
+        // --- Render and Check Win ---
+        const pieceIndex = players[color].pieces.findIndex(p => p.id === pieceId);
+        renderPiece(piece, pieceIndex);
+        
+        if (checkWin(color)) {
+            endGame(color);
+            return;
+        }
+        
+        // --- Next Turn ---
+        if (diceValue === 6 || givesExtraTurn) {
+            updateStatus(`${capitalize(color)} को एक और बारी मिली!`, 1500);
+            diceValue = 0; // Reset for next roll
+            if (players[turn].isBot) {
+                setTimeout(botTurn, 1500);
+            } else {
+                diceElement.classList.remove('disabled');
+            }
+        } else {
+            setTimeout(switchTurn, 500);
+        }
+    }
+
+    function checkWin(color) {
+        return players[color].pieces.every(p => p.position === WIN_POS);
+    }
+
+    function endGame(winnerColor) {
+        gameActive = false;
+        const winnerName = players[winnerColor].isBot ? `Bot (${capitalize(winnerColor)})` : 'आप';
+        statusMessage.textContent = `${winnerName} जीत गए!`;
+        diceElement.classList.add('disabled');
+    }
+
+    function switchTurn() {
+        const currentIndex = PLAYER_COLORS.indexOf(turn);
+        turn = PLAYER_COLORS[(currentIndex + 1) % PLAYER_COLORS.length];
+        diceValue = 0;
+        updateStatus();
+
+        if (players[turn].isBot) {
+            diceElement.classList.add('disabled');
+            setTimeout(botTurn, 1000);
+        } else {
+            diceElement.classList.remove('disabled');
+        }
+    }
+
+    function botTurn() {
+        if (!gameActive) return;
+
+        diceValue = Math.floor(Math.random() * 6) + 1;
+        updateStatus(`Bot (${capitalize(turn)}) ने ${diceValue} फेंका।`, 1000);
+        
+        setTimeout(() => {
+            handleTurn();
+        }, 1000);
+    }
+    
+    // --- BOT AI LOGIC ---
+    function chooseBotMove(movablePieces) {
+        // Priority 1: Kill an opponent
+        for (const piece of movablePieces) {
+            const futurePos = getFuturePosition(piece, diceValue);
+            if (isKillMove(futurePos, turn)) {
+                return piece;
+            }
+        }
+
+        // Priority 2: Reach home
+        for (const piece of movablePieces) {
+            const futurePos = getFuturePosition(piece, diceValue);
+            if (futurePos === WIN_POS) {
+                return piece;
+            }
+        }
+        
+        // Priority 3: Land on a safe spot
+        for (const piece of movablePieces) {
+            const futurePos = getFuturePosition(piece, diceValue);
+            if (pathLayout.find(c => c.id === futurePos)?.safe) {
+                return piece;
+            }
+        }
+
+        // Priority 4: Get a piece out of home
+        const homePiece = movablePieces.find(p => p.position === HOME_POS);
+        if (homePiece) {
+            return homePiece;
+        }
+
+        // Priority 5: Move the piece that is furthest along
+        let furthestPiece = movablePieces[0];
+        let maxPos = 0;
+        for(const piece of movablePieces) {
+            // A simple distance metric
+            let distance = piece.position;
+            if (distance < PLAYER_START_POS[turn]) {
+                distance += TOTAL_CELLS;
+            }
+            if (distance > maxPos) {
+                maxPos = distance;
+                furthestPiece = piece;
+            }
+        }
+        return furthestPiece;
+    }
+    
+    function getFuturePosition(piece, roll) {
+        if (piece.position === HOME_POS) return PLAYER_START_POS[piece.id.split('-')[0]];
+
+        const color = piece.id.split('-')[0];
+        const homeStretchStart = HOME_STRETCH_START[color];
+        const playerStartPos = PLAYER_START_POS[color];
+        
+        let newPos = piece.position;
+        if (newPos < homeStretchStart) {
+            const entryPoint = (playerStartPos === 1) ? TOTAL_CELLS : playerStartPos - 1;
+            if (newPos <= entryPoint && newPos + roll > entryPoint) {
+                newPos = homeStretchStart + (newPos + roll - entryPoint - 1);
+            } else {
+                newPos = (newPos + roll - 1) % TOTAL_CELLS + 1;
+            }
+        } else {
+            newPos += roll;
+        }
+
+        if (newPos === homeStretchStart + 5) return WIN_POS;
+        return newPos;
+    }
+
+    function isKillMove(position, botColor) {
+        if (position >= HOME_STRETCH_START.red) return false; // Can't kill on home stretch
+        if (pathLayout.find(c => c.id === position)?.safe) return false;
+
+        for (const color of PLAYER_COLORS) {
+            if (color === botColor || players[color].isBot) continue; // Only check player pieces
+            if (players[color].pieces.some(p => p.position === position)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    function updateStatus(message = '', duration = 0) {
+        const turnColor = turn;
+        let baseMessage = players[turnColor].isBot 
+            ? `Bot (${capitalize(turnColor)}) की बारी`
+            : 'आपकी बारी (नीला)';
+        
+        statusMessage.textContent = message || baseMessage;
+        statusMessage.style.color = `var(--${turnColor}-color)`;
+
+        if (duration > 0) {
+            setTimeout(() => {
+                if(turn === turnColor) { // Only reset if turn hasn't changed
+                    statusMessage.textContent = baseMessage;
+                }
+            }, duration);
+        }
+    }
+    
+    function capitalize(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+    
+    // --- Event Listeners ---
+    diceElement.addEventListener('click', rollDice);
+    resetButton.addEventListener('click', initGame);
+    window.addEventListener('resize', renderAllPieces);
+
+    // --- Start Game ---
+    createBoard();
+    initGame();
+});
+
+</script>
+</body>
+</html>
